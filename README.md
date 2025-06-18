@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Contentful Layout Editor App
 
-## Getting Started
+A drag & drop layout builder for Contentful that allows content editors to create dynamic page layouts and save them as JSON configuration.
 
-First, run the development server:
+## Features
 
+- 🎨 **Drag & Drop Interface**: Intuitive visual layout builder
+- 📦 **Component Palette**: Pre-built components (Hero Block, Two Column Row, Image Grid)
+- 🔄 **Undo/Redo**: Full history management with undo/redo functionality
+- 💾 **Auto-save**: Automatic saving to Contentful with debouncing
+- 👀 **Preview**: Preview layouts in development mode
+- 🗑️ **Component Management**: Add, remove, and reorder components
+
+## Setup
+
+### 1. Install Dependencies
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 2. Development Mode
+```bash
+npm run dev
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The app will be available at `http://localhost:3000/editor`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### 3. Contentful Integration
 
-## Learn More
+#### Create the App in Contentful
+```bash
+# Login to Contentful
+npm run contentful:login
 
-To learn more about Next.js, take a look at the following resources:
+# Select your space
+npm run contentful:space:use
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Create the app
+npm run contentful:app:create
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Deploy the app
+npm run contentful:app:deploy
+```
 
-## Deploy on Vercel
+#### Configure Content Model
+1. Create a new content type (e.g., "Landing Page")
+2. Add a field of type "Object" (JSON)
+3. Configure the field to use this app
+4. The app will save layout configuration as JSON to this field
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## How It Works
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Contentful App (This Repository)
+- **Editor Interface**: Drag & drop layout builder
+- **Redux State Management**: Handles layout state, undo/redo, autosave
+- **Contentful SDK**: Saves layout configuration as JSON to Contentful
+- **Component System**: Modular components that can be arranged
+
+### Frontend App (Separate Repository)
+- **Static Site Generation**: Next.js builds pages from Contentful data
+- **Layout Rendering**: Reads JSON configuration and renders components
+- **Dynamic Content**: Fetches referenced content entries
+
+## Data Flow
+
+```
+[Editor] → [Contentful App] → [Contentful CMS] → [Frontend App] → [Rendered Page]
+   ↓           ↓                    ↓                ↓              ↓
+Drag & Drop → Save JSON → Store Layout Config → Fetch & Render → Static Page
+```
+
+## Component Types
+
+- **HeroBlock**: Full-width hero section
+- **TwoColumnRow**: Two-column layout (text + image)
+- **ImageGrid**: 2x2 image grid layout
+
+## Development
+
+### Adding New Components
+1. Update `ComponentConfig` type in `src/app/lib/types.ts`
+2. Add component to `availableComponents` array in `ComponentPalette.tsx`
+3. Add preview rendering in `ComponentPreview.tsx`
+4. Add thumbnail in `ComponentPalette.tsx`
+
+### Styling
+- Main styles: `src/app/styles/DragDrop.module.css`
+- Component-specific styles can be added as needed
+
+## Environment Variables
+
+- `NEXT_PUBLIC_FRONTEND_URL`: URL of your frontend app for preview functionality
+
+## Troubleshooting
+
+### App Not Loading in Contentful
+- Ensure the app is properly deployed: `npm run contentful:app:deploy`
+- Check that the field type is set to "Object" (JSON)
+- Verify the app URL in Contentful matches your deployment
+
+### Layout Not Saving
+- Check browser console for errors
+- Verify Contentful SDK initialization
+- Ensure field permissions are correct
+
+### Preview Not Working
+- Set `NEXT_PUBLIC_FRONTEND_URL` environment variable
+- Ensure frontend app is deployed and accessible 

@@ -1,0 +1,14 @@
+{
+  "name": "Layout Editor",
+  "id": "layout-editor",
+  "src": "http://localhost:3000/editor",
+  "fieldTypes": [
+    {
+      "type": "Object"
+    }
+  ],
+  "parameters": {
+    "installation": [],
+    "instance": []
+  }
+} 
