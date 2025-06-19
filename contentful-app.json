@@ -1,7 +1,7 @@
 {
   "name": "Layout Editor",
-  "id": "5uMF9vbxAHC29sHFQkVi9N",
-  "src": "http://localhost:3000",
+  "id": "3eUyi9K4pkxLoe759djank",
+  "src": "https://landing-contentfull-app.vercel.app",
   "fieldTypes": [
     {
       "type": "Object"
