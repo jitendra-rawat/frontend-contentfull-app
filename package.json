@@ -10,7 +10,11 @@
     "contentful:login": "contentful login",
     "contentful:space:use": "contentful space use",
     "contentful:app:create": "contentful app create",
-    "contentful:app:deploy": "contentful app deploy"
+    "contentful:app:deploy": "contentful app deploy",
+    "contentful:config:dev": "cp contentful-app.dev.json contentful-app.json",
+    "contentful:config:prod": "cp contentful-app.prod.json contentful-app.json",
+    "contentful:setup:dev": "npm run contentful:config:dev && echo 'Development config loaded. Use localhost:3000/editor for Contentful app URL'",
+    "contentful:setup:prod": "npm run contentful:config:prod && echo 'Production config loaded. Use https://contentfulll-app.vercel.app/editor for Contentful app URL'"
   },
   "dependencies": {
     "next": "^15.3.0",
