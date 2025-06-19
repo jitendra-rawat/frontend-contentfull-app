@@ -1,14 +1,25 @@
 {
   "name": "Layout Editor",
   "id": "layout-editor",
-  "src": "http://localhost:3000/editor",
+  "src": "https://contentfulll-app.vercel.app/editor",
   "fieldTypes": [
     {
       "type": "Object"
     }
   ],
+  "locations": [
+    {
+      "location": "entry-field",
+      "fieldTypes": ["Object"]
+    },
+    {
+      "location": "dialog",
+      "fieldTypes": ["Object"]
+    }
+  ],
   "parameters": {
     "installation": [],
     "instance": []
-  }
-} 
+  },
+  "srcdoc": "./index.html"
+}
