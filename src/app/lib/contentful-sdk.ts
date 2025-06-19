@@ -267,29 +267,26 @@ function showNotification(title: string, message: string, type: 'success' | 'err
 }
 
 // Helper function to safely update field value with JSON data
-export function updateFieldValue(data: any) {
+export function updateFieldValue(data: any, entryId?: string) {
   const sdk = (window as any).sdk;
-  if (!sdk || !sdk.field) {
-    console.error('SDK or field not available');
-    return Promise.reject(new Error('SDK not initialized'));
-  }
-  
-  try {
-    // Validate that data can be serialized to JSON
-    JSON.stringify(data);
-    
-    return sdk.field.setValue(data).then(() => {
-      console.log('Field value updated successfully:', data);
-      sdk.notifier.success('Layout configuration saved');
-    }).catch((error: any) => {
-      console.error('Failed to update field value:', error);
-      sdk.notifier.error('Failed to save layout configuration');
-      throw error;
-    });
-  } catch (error) {
-    console.error('Invalid JSON data:', error);
-    sdk.notifier.error('Invalid layout configuration data');
-    return Promise.reject(error);
+  if (sdk && sdk.field) {
+    // ... existing logic ...
+    return sdk.field.setValue(data)
+      .then(() => {
+        console.log('Field value updated successfully:', data);
+        sdk.notifier.success('Layout configuration saved');
+      })
+      .catch((error: any) => {
+        console.error('Failed to update field value:', error);
+        sdk.notifier.error('Failed to save layout configuration');
+        throw error;
+      });
+  } else if (entryId) {
+    // Use API route
+    return updateLayoutConfigViaApiRoute(entryId, data);
+  } else {
+    // Error: cannot save
+    return Promise.reject(new Error('No Contentful SDK or entryId available'));
   }
 }
 
@@ -302,4 +299,17 @@ export function getFieldValue() {
   }
   
   return sdk.field.getValue();
+}
+
+
+export async function updateLayoutConfigViaApiRoute(entryId: string, data: any) {
+  const res = await fetch('/api/update-layout', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ entryId, data }),
+  });
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error.error || 'Failed to update layout');
+  }
 }
