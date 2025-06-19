@@ -2,7 +2,7 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import layoutReducer from './slices/layoutSlice';
-import autosaveMiddleware from './middleware/autosaveMiddleware';
+// import autosaveMiddleware from './middleware/autosaveMiddleware';
 import storage from 'redux-persist/lib/storage';
 import { persistReducer, persistStore } from 'redux-persist';
 
@@ -25,7 +25,7 @@ export const store = configureStore({
         ignoredActions: ['persist/PERSIST', 'persist/REHYDRATE'],
         ignoredPaths: ['register', 'rehydrate'],
       },
-    }).concat(autosaveMiddleware),
+    }),
 });
 
 export const persistor = persistStore(store);

@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { DragDropContext } from 'react-beautiful-dnd';
 import { store, persistor } from '../redux/store';
-import { initContentfulSDK } from '../lib/contentful-sdk';
+import { initContentfulSDK, updateFieldValue, getFieldValue } from '../lib/contentful-sdk';
 import DragDropContainer from '../components/DragDropContainer';
 import UndoRedoControls from '../components/UndoRedoControls';
 import ComponentPalette from '../components/ComponentPalette';
@@ -23,119 +23,204 @@ const EditorContent: React.FC = () => {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [hasUserInteracted, setHasUserInteracted] = useState(false);
+  const [sdkReady, setSdkReady] = useState(false);
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSavedLayoutRef = useRef<string>('');
 
-  const saveLayout = useCallback(async () => {
-    if ((window as any).sdk) {
-      try {
-        setIsSaving(true);
-        
-        // Validate layout data
-        if (!Array.isArray(layout)) {
-          throw new Error('Layout data must be an array');
-        }
-        
-        // Format the data for Contentful Object field
-        const contentfulData = {
-          components: layout,
-          lastModified: new Date().toISOString(),
-          version: '1.0'
-        };
-        
-        console.log('🔄 Manually saving to Contentful:', contentfulData);
-        
-        // Save as JSON object to Contentful Object field
-        await (window as any).sdk.field.setValue(contentfulData);
-        
-        if ((window as any).sdk.notifier) {
-          (window as any).sdk.notifier.success('Layout saved successfully!');
-        }
-        
-        console.log('✅ Layout manually saved to Contentful successfully');
-      } catch (error) {
-        console.error('❌ Failed to save layout:', error);
-        if ((window as any).sdk.notifier) {
-          (window as any).sdk.notifier.error('Failed to save layout. Please try again.');
-        }
-      } finally {
-        setIsSaving(false);
-      }
+  // Manual save function
+  const saveLayoutToContentful = useCallback(async () => {
+    if (!sdkReady) {
+      console.warn('SDK not ready, cannot save');
+      return;
     }
-  }, [layout]);
 
-  useEffect(() => {
-    initContentfulSDK();
-    if ((window as any).sdk) {
-      (window as any).sdk.window.startAutoResizer();
+    try {
+      // Validate layout data
+      if (!Array.isArray(layout)) {
+        throw new Error('Layout data must be an array');
+      }
       
-      // Get initial value from Contentful
-      const initialValue = (window as any).sdk.field.getValue();
+      // Format the data for Contentful Object field
+      const contentfulData = {
+        components: layout,
+        lastModified: new Date().toISOString(),
+        version: '1.0',
+        metadata: {
+          totalComponents: layout.length,
+          componentTypes: [...new Set(layout.map(c => c.type))]
+        }
+      };
+      
+      console.log('💾 Saving to Contentful:', contentfulData);
+      
+      // Use the helper function from SDK
+      await updateFieldValue(contentfulData);
+      
+      console.log('✅ Layout saved to Contentful successfully');
+      return contentfulData;
+    } catch (error) {
+      console.error('❌ Failed to save layout:', error);
+      throw error;
+    }
+  }, [layout, sdkReady]);
+
+  // Manual save with UI feedback
+  const handleManualSave = useCallback(async () => {
+    try {
+      setIsSaving(true);
+      await saveLayoutToContentful();
+      lastSavedLayoutRef.current = JSON.stringify(layout);
+    } catch (error) {
+      console.error('Manual save failed:', error);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [saveLayoutToContentful, layout]);
+
+  // Load initial data from Contentful
+  const loadInitialData = useCallback(() => {
+    if (!sdkReady) return;
+
+    try {
+      const initialValue = getFieldValue();
+      console.log('📥 Initial Contentful value:', initialValue);
+      
       if (initialValue) {
-        // Handle new format with components array
+        let componentsToLoad: ComponentConfig[] = [];
+        
+        // Handle new object format with components array
         if (initialValue.components && Array.isArray(initialValue.components)) {
-          dispatch(setLayout(initialValue.components));
-          setHasUserInteracted(true);
-          console.log('📥 Loaded layout from Contentful (new format):', initialValue.components);
+          componentsToLoad = initialValue.components;
+          console.log('📥 Loading layout (object format):', componentsToLoad);
         }
-        // Handle legacy format (direct array)
+        // Handle legacy direct array format
         else if (Array.isArray(initialValue)) {
-          dispatch(setLayout(initialValue));
-          setHasUserInteracted(true);
-          console.log('📥 Loaded layout from Contentful (legacy format):', initialValue);
+          componentsToLoad = initialValue;
+          console.log('📥 Loading layout (array format):', componentsToLoad);
         }
-        // Handle legacy string format
+        // Handle string format (shouldn't happen with Object field)
         else if (typeof initialValue === 'string') {
           try {
             const parsed = JSON.parse(initialValue);
             if (parsed.components && Array.isArray(parsed.components)) {
-              dispatch(setLayout(parsed.components));
-              setHasUserInteracted(true);
-              console.log('📥 Loaded layout from Contentful (parsed new format):', parsed.components);
+              componentsToLoad = parsed.components;
             } else if (Array.isArray(parsed)) {
-              dispatch(setLayout(parsed));
-              setHasUserInteracted(true);
-              console.log('📥 Loaded layout from Contentful (parsed legacy format):', parsed);
+              componentsToLoad = parsed;
             }
-          } catch (error) {
-            console.error('❌ Failed to parse initial layout value:', error);
+            console.log('📥 Loading layout (parsed format):', componentsToLoad);
+          } catch (parseError) {
+            console.error('❌ Failed to parse initial layout value:', parseError);
+            return;
           }
         }
+
+        if (componentsToLoad.length > 0) {
+          dispatch(setLayout(componentsToLoad));
+          lastSavedLayoutRef.current = JSON.stringify(componentsToLoad);
+          console.log('✅ Initial layout loaded successfully');
+        }
+      } else {
+        console.log('📝 No initial layout data, starting with empty layout');
+        // Initialize with empty layout if no data exists
+        const emptyData = {
+          components: [],
+          lastModified: new Date().toISOString(),
+          version: '1.0'
+        };
+        updateFieldValue(emptyData).catch(console.error);
       }
-      
-      // Listen for external changes
-      (window as any).sdk.field.onValueChanged((value: any) => {
-        if (value) {
-          if (value.components && Array.isArray(value.components)) {
-            dispatch(setLayout(value.components));
-            setHasUserInteracted(true);
-            console.log('🔄 Layout updated from external change (new format):', value.components);
-          } else if (Array.isArray(value)) {
-            dispatch(setLayout(value));
-            setHasUserInteracted(true);
-            console.log('🔄 Layout updated from external change (legacy format):', value);
-          }
-        }
-      });
+    } catch (error) {
+      console.error('❌ Failed to load initial data:', error);
     }
-  }, [dispatch]);
+  }, [dispatch, sdkReady]);
+
+  // Initialize SDK and set up listeners
+  useEffect(() => {
+    console.log('🚀 Initializing Contentful SDK...');
+    
+    initContentfulSDK();
+    
+    // Wait for SDK to be ready
+    const checkSDK = () => {
+      if ((window as any).sdk) {
+        console.log('✅ SDK is ready');
+        setSdkReady(true);
+        
+        // Set up external change listener
+        const unsubscribe = (window as any).sdk.field.onValueChanged((value: any) => {
+          console.log('🔄 External field change detected:', value);
+          
+          if (value && value.components && Array.isArray(value.components)) {
+            // Only update if it's different from current layout
+            const currentLayoutString = JSON.stringify(layout);
+            const newLayoutString = JSON.stringify(value.components);
+            
+            if (currentLayoutString !== newLayoutString) {
+              dispatch(setLayout(value.components));
+              lastSavedLayoutRef.current = newLayoutString;
+              console.log('📥 Layout updated from external change');
+            }
+          }
+        });
+
+        // Listen for custom field change events
+        const handleCustomFieldChange = (event: CustomEvent) => {
+          console.log('🔄 Custom field change event:', event.detail);
+          if (event.detail && event.detail.components) {
+            dispatch(setLayout(event.detail.components));
+          }
+        };
+
+        window.addEventListener('contentfulFieldChanged', handleCustomFieldChange as EventListener);
+
+        // Cleanup function
+        return () => {
+          if (unsubscribe) unsubscribe();
+          window.removeEventListener('contentfulFieldChanged', handleCustomFieldChange as EventListener);
+        };
+      } else {
+        // Retry after a short delay
+        setTimeout(checkSDK, 100);
+      }
+    };
+
+    checkSDK();
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [dispatch, layout]);
+
+  // Load initial data when SDK is ready
+  useEffect(() => {
+    if (sdkReady) {
+      loadInitialData();
+    }
+  }, [sdkReady, loadInitialData]);
 
   const handlePreview = () => {
     const isDevelopment = window.location.origin.includes('localhost');
     
     if (isDevelopment) {
-      // In development mode, show the preview modal
       setIsPreviewModalOpen(true);
       return;
     }
 
-    // In Contentful environment, use the actual SDK
-    if ((window as any).sdk) {
+    if (sdkReady && (window as any).sdk) {
       try {
-        const pageId = (window as any).sdk.entry.getSys().id;
+        const entrySys = (window as any).sdk.entry.getSys();
+        const pageId = entrySys.id;
         const frontendUrl = process.env.NEXT_PUBLIC_FRONTEND_URL || 'https://your-frontend-domain.com';
         const previewUrl = `${frontendUrl}/landing/${pageId}`;
+        
+        console.log('🔍 Opening preview:', previewUrl);
         window.open(previewUrl, '_blank');
       } catch (error) {
-        console.error('Error opening preview:', error);
+        console.error('❌ Error opening preview:', error);
         if ((window as any).sdk.notifier) {
           (window as any).sdk.notifier.error('Unable to open preview. Please check your frontend URL configuration.');
         }
@@ -148,10 +233,10 @@ const EditorContent: React.FC = () => {
       if (!result.destination) return;
 
       const { source, destination } = result;
+      setHasUserInteracted(true);
 
       // Handle drops from palette to layout
       if (source.droppableId === 'palette' && destination.droppableId === 'layout') {
-        setHasUserInteracted(true); // Mark user interaction
         const componentType = result.draggableId.replace('palette-', '');
         
         const availableComponents: ComponentConfig[] = [
@@ -160,10 +245,11 @@ const EditorContent: React.FC = () => {
           { id: 'imageGrid', type: 'ImageGrid', name: '2x2 Image Grid' },
         ];
 
+        const baseComponent = availableComponents.find(c => c.id === componentType);
         const newComponent: ComponentConfig = {
           id: `${componentType}-${Date.now()}`,
           type: componentType as ComponentConfig['type'],
-          name: availableComponents.find(c => c.id === componentType)?.name || componentType,
+          name: baseComponent?.name || componentType
         };
 
         const newLayout = Array.from(layout);
@@ -174,7 +260,6 @@ const EditorContent: React.FC = () => {
 
       // Handle reordering within layout
       if (source.droppableId === 'layout' && destination.droppableId === 'layout') {
-        setHasUserInteracted(true); // Mark user interaction
         const reordered = Array.from(layout);
         const [moved] = reordered.splice(source.index, 1);
         reordered.splice(destination.index, 0, moved);
@@ -185,9 +270,42 @@ const EditorContent: React.FC = () => {
     [layout, dispatch]
   );
 
+  // Helper function to get default props for components
+  const getDefaultPropsForComponent = (componentType: string) => {
+    switch (componentType) {
+      case 'hero':
+        return {
+          title: 'Hero Title',
+          subtitle: 'Hero Subtitle',
+          backgroundImage: ''
+        };
+      case 'twoColumn':
+        return {
+          leftContent: 'Left Column Content',
+          rightContent: 'Right Column Content'
+        };
+      case 'imageGrid':
+        return {
+          images: [
+            { src: '', alt: 'Image 1' },
+            { src: '', alt: 'Image 2' },
+            { src: '', alt: 'Image 3' },
+            { src: '', alt: 'Image 4' }
+          ]
+        };
+      default:
+        return {};
+    }
+  };
+
   const handleUserInteraction = useCallback(() => {
     setHasUserInteracted(true);
   }, []);
+
+  const toggleAutoSave = useCallback(() => {
+    setAutoSaveEnabled(prev => !prev);
+    console.log('🔄 Auto-save toggled:', !autoSaveEnabled);
+  }, [autoSaveEnabled]);
 
   return (
     <DragDropContext onDragEnd={onDragEnd}>
@@ -195,18 +313,28 @@ const EditorContent: React.FC = () => {
         <DevelopmentMode />
         <div className={styles.mainContent}>
           <h1 className={styles.pageTitle}>🎨 Layout Editor</h1>
+          
           <div className={styles.headerControls}>
-            <button onClick={handlePreview} className={styles.previewButton}>
-              👁️ Preview
-            </button>
-            <button 
-              onClick={saveLayout} 
-              className={styles.saveButton}
-              disabled={isSaving}
-            >
-              {isSaving ? '💾 Saving...' : '💾 Save Layout'}
-            </button>
+            <div className={styles.statusIndicator}>
+              <span className={sdkReady ? styles.statusReady : styles.statusLoading}>
+                {sdkReady ? '🟢 Connected' : '🟡 Connecting...'}
+              </span>
+            </div>
+            
+            <div className={styles.actionButtons}>
+              <button onClick={handlePreview} className={styles.previewButton}>
+                👁️ Preview
+              </button>
+              <button 
+                onClick={handleManualSave} 
+                className={styles.saveButton}
+                disabled={isSaving || !sdkReady}
+              >
+                {isSaving ? '💾 Saving...' : '💾 Save Layout'}
+              </button>
+            </div>
           </div>
+
           <UndoRedoControls onUserInteraction={handleUserInteraction} />
           <ComponentPalette 
             layout={layout} 
