@@ -1,7 +1,7 @@
 {
   "name": "Layout Editor",
   "id": "3eUyi9K4pkxLoe759djank",
-  "src": "https://landing-contentfull-app.vercel.app",
+  "src": "https://contentfulll-app.vercel.app/editor",
   "fieldTypes": [
     {
       "type": "Object"
