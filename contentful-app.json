@@ -7,19 +7,8 @@
       "type": "Object"
     }
   ],
-  "locations": [
-    {
-      "location": "entry-field",
-      "fieldTypes": ["Object"]
-    },
-    {
-      "location": "dialog",
-      "fieldTypes": ["Object"]
-    }
-  ],
   "parameters": {
     "installation": [],
     "instance": []
-  },
-  "srcdoc": "./index.html"
+  }
 }
