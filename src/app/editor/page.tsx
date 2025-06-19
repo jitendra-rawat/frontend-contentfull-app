@@ -17,6 +17,8 @@ import { setLayout } from '../redux/slices/layoutSlice';
 import { ComponentConfig } from '../lib/types';
 import styles from '../styles/DragDrop.module.css';
 
+const ENTRY_ID = process.env.NEXT_PUBLIC_CONTENTFUL_ENTRY_ID || 'YOUR_ENTRY_ID_HERE'; // TODO: Dynamically determine entryId if needed
+
 const EditorContent: React.FC = () => {
   const dispatch = useDispatch();
   const layout = useSelector((state: RootState) => state.layout.current);
@@ -55,7 +57,7 @@ const EditorContent: React.FC = () => {
       console.log('💾 Saving to Contentful:', contentfulData);
       
       // Use the helper function from SDK
-      await updateFieldValue(contentfulData);
+      await updateFieldValue(contentfulData, ENTRY_ID);
       
       console.log('✅ Layout saved to Contentful successfully');
       return contentfulData;
@@ -128,7 +130,7 @@ const EditorContent: React.FC = () => {
           lastModified: new Date().toISOString(),
           version: '1.0'
         };
-        updateFieldValue(emptyData).catch(console.error);
+        updateFieldValue(emptyData, ENTRY_ID).catch(console.error);
       }
     } catch (error) {
       console.error('❌ Failed to load initial data:', error);
